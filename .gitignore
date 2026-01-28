@@ -1,0 +1,59 @@
+# ===============================
+# Python
+# ===============================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+pip-wheel-metadata/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+
+# ===============================
+# Virtual Environments
+# ===============================
+venv/
+.venv/
+env/
+ENV/
+
+# ===============================
+# OS / Editor
+# ===============================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ===============================
+# Streamlit / Secrets
+# ===============================
+.streamlit/secrets.toml
+
+# ===============================
+# Local env files
+# ===============================
+.env
+.env.*
+!.env.example
+
+# ===============================
+# App-generated data (your project)
+# ===============================
+uploaded_docs/
+html_docs/
+docs_manifest.json
+local_vector_store.json
+*.log
+
+# Optional: if you store embeddings/docs locally
+document_embeddings.json
+memory_summaries.json
