@@ -5,14 +5,34 @@ import json
 import math
 from typing import List, Dict, Optional
 
-from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
 VECTOR_FILE = "longterm_memory.json"
+
+# ✅ IMPORTANT: do NOT create OpenAI client at import time (Streamlit Cloud will crash)
+_client = None
+
+
+def _get_openai_client():
+    """Create OpenAI client lazily (only when needed)."""
+    global _client
+    if _client is not None:
+        return _client
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        # Don't raise here (keeps app alive); caller will handle.
+        return None
+
+    try:
+        from openai import OpenAI
+        _client = OpenAI(api_key=api_key)
+        return _client
+    except Exception as e:
+        print(f"[openai] Failed to init client: {e}")
+        return None
 
 
 def _load_vectors() -> List[Dict]:
@@ -41,8 +61,17 @@ def cosine(a: List[float], b: List[float]) -> float:
     return dot / (na * nb + 1e-9)
 
 
-def embed_text(text: str):
+def embed_text(text: str) -> List[float]:
     """Convert text into a vector embedding using OpenAI embeddings API."""
+    text = (text or "").strip()
+    if not text:
+        return []
+
+    client = _get_openai_client()
+    if client is None:
+        print("[embed] OPENAI_API_KEY missing or OpenAI client init failed.")
+        return []
+
     try:
         resp = client.embeddings.create(model="text-embedding-3-small", input=text)
         return resp.data[0].embedding
@@ -51,7 +80,7 @@ def embed_text(text: str):
         return []
 
 
-def store_summary(session_id: str, summary: str):
+def store_summary(session_id: str, summary: str) -> None:
     """Store a summary and its embedding into long-term memory."""
     vectors = _load_vectors()
     emb = embed_text(summary)
@@ -59,7 +88,6 @@ def store_summary(session_id: str, summary: str):
         print("[longterm] Skipped storing summary (embedding failed).")
         return
 
-    # ADDED: stable id + type + print includes id
     mem_id = f"mem:{len(vectors):06d}"
 
     vectors.append(
@@ -76,8 +104,7 @@ def store_summary(session_id: str, summary: str):
     print(f"[longterm] Stored summary from session {session_id} as id={mem_id}")
 
 
-# ADDED
-def store_note(text: str, session_id: str = "global", tags: Optional[List[str]] = None):
+def store_note(text: str, session_id: str = "global", tags: Optional[List[str]] = None) -> None:
     """Store a freeform note into long-term memory (used in hybrid RAG)."""
     vectors = _load_vectors()
     emb = embed_text(text)
@@ -103,7 +130,7 @@ def store_note(text: str, session_id: str = "global", tags: Optional[List[str]] 
     print(f"[longterm] Stored note id={mem_id}")
 
 
-def recall_relevant(query: str, top_k: int = 2):
+def recall_relevant(query: str, top_k: int = 2) -> List[str]:
     """Return top-k relevant summaries for the given query based on cosine similarity."""
     vectors = _load_vectors()
     if not vectors:
@@ -123,7 +150,6 @@ def recall_relevant(query: str, top_k: int = 2):
     return [v.get("summary", "") for v, _ in scored[:top_k] if v.get("summary")]
 
 
-# ADDED
 def search_memory(query: str, top_k: int = 3) -> List[Dict]:
     """
     Semantic search across all memory vectors (summaries + notes).
