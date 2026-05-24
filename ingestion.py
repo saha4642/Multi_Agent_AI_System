@@ -102,7 +102,19 @@ def _read_docx_paragraphs(path: str) -> Tuple[List[str], str]:
     except Exception as e:
         raise RuntimeError("DOCX support requires `python-docx` (pip install python-docx).") from e
 
-    doc = Document(path)
+    try:
+        doc = Document(path)
+    except KeyError as e:
+        # python-docx raises this when the OPC package is not a valid Word document
+        # (common cases: renamed .doc file, malformed/corrupt .docx).
+        raise RuntimeError(
+            f"Invalid DOCX structure for '{os.path.basename(path)}'. "
+            "The file may be corrupted or not a true .docx document."
+        ) from e
+    except Exception as e:
+        raise RuntimeError(
+            f"Unable to read DOCX '{os.path.basename(path)}': {e}"
+        ) from e
     paras = [((p.text or "").strip()) for p in doc.paragraphs]
     paras = [p for p in paras if p]
     return paras, os.path.basename(path)
