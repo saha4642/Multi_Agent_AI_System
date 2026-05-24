@@ -96,6 +96,18 @@ def _read_pdf_pages(path: str) -> Tuple[List[str], str]:
     return pages, os.path.basename(path)
 
 
+def _read_docx_paragraphs(path: str) -> Tuple[List[str], str]:
+    try:
+        from docx import Document  # type: ignore
+    except Exception as e:
+        raise RuntimeError("DOCX support requires `python-docx` (pip install python-docx).") from e
+
+    doc = Document(path)
+    paras = [((p.text or "").strip()) for p in doc.paragraphs]
+    paras = [p for p in paras if p]
+    return paras, os.path.basename(path)
+
+
 def _write_pdf_as_wiki_html(doc_id: str, title: str, source_path: str, items: List[Dict]) -> str:
     """Create a single local HTML file with chunk anchors, like a wiki page."""
     html_root = _ensure_dir(HTML_DIR)
@@ -381,6 +393,40 @@ def ingest_file(
         print(f"[ingest] Ingested '{path}' as doc_id='{doc_id}' with {len(items)} chunks.")
         return doc_id
 
+    if ext == ".docx":
+        paragraphs, title = _read_docx_paragraphs(path)
+        text = "\n\n".join(paragraphs).strip()
+        if not text:
+            raise RuntimeError("DOCX had no extractable text.")
+
+        chunks = split_text(text, doc_id=doc_id, chunk_size=chunk_size, overlap=overlap)
+        for ch in chunks:
+            meta = (ch.get("metadata") or {}) | {
+                "title": title,
+                "source_path": path,
+                "source_type": ext,
+                "doc_id": doc_id,
+                "page_number": None,
+                "text": ch["text"],
+            }
+            items.append({"id": ch["id"], "text": ch["text"], "metadata": meta})
+
+        store.batch_upsert(items)
+
+        manifest = _load_manifest()
+        manifest[doc_id] = {
+            "doc_id": doc_id,
+            "title": title,
+            "source_path": path,
+            "source_type": ext,
+            "num_chunks": len(items),
+            "added_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        _save_manifest(manifest)
+
+        print(f"[ingest] Ingested '{path}' as doc_id='{doc_id}' with {len(items)} chunks.")
+        return doc_id
+
     if ext == ".pdf":
         pages, title = _read_pdf_pages(path)
         if not any((p or "").strip() for p in pages):
@@ -474,7 +520,7 @@ def ingest_uploaded_file(
 def ingest_dir(
     folder: str,
     store: VectorStore,
-    exts: tuple = (".txt", ".md", ".pdf"),
+    exts: tuple = (".txt", ".md", ".pdf", ".docx"),
 ) -> List[str]:
     """Ingest all supported files in directory tree."""
 

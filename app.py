@@ -424,11 +424,11 @@ with tab_multi:
 # =============================================================================
 
 with tab_ingest:
-    st.subheader("Upload & Ingest Documents (txt / md / pdf)")
+    st.subheader("Upload & Ingest Documents (txt / md / pdf / docx)")
 
     uploads = st.file_uploader(
         "Upload one or more files",
-        type=["txt", "md", "pdf"],
+        type=["txt", "md", "pdf", "docx"],
         accept_multiple_files=True,
     )
 
