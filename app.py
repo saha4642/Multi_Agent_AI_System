@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import base64
 import json
 import asyncio
 import inspect
@@ -195,19 +196,44 @@ def _source_viewer() -> None:
     st.caption("Showing the exact retrieved chunk text stored in metadata during ingestion.")
 
     found_text = None
+    hit_meta: Dict[str, Any] = {}
+
     try:
-        hits = retrieve(query=chunk_id, store=st.session_state.store, top_k=20, filter_doc_id=doc_id)
-        for h in hits:
-            if h.get("id") == chunk_id:
-                found_text = (h.get("metadata", {}) or {}).get("text") or h.get("text")
-                break
+        exact = st.session_state.store.get_by_id(chunk_id)
+        if exact:
+            hit_meta = (exact.get("metadata", {}) or {})
+            found_text = hit_meta.get("text") or exact.get("text")
     except Exception:
-        found_text = None
+        exact = None
 
     if not found_text:
-        st.warning("Could not directly re-fetch the chunk by id from the vector store.")
-        st.info("Tip: If you want perfect chunk lookup, add a VectorStore.get_by_id() method.")
+        try:
+            hits = retrieve(query=chunk_id, store=st.session_state.store, top_k=20, filter_doc_id=doc_id)
+            for h in hits:
+                if h.get("id") == chunk_id:
+                    hit_meta = (h.get("metadata", {}) or {})
+                    found_text = hit_meta.get("text") or h.get("text")
+                    break
+        except Exception:
+            found_text = None
+
+    if not found_text:
+        st.warning("Could not locate this chunk in the vector store.")
         return
+
+    source_path = d.get("source_path", "")
+    if (source_path or "").lower().endswith(".pdf") and os.path.exists(source_path):
+        try:
+            with open(source_path, "rb") as f:
+                pdf_b64 = base64.b64encode(f.read()).decode("utf-8")
+            target_page = int(page_num or hit_meta.get("page_number") or 1)
+            st.markdown(f"**Preview (PDF page {target_page})**")
+            st.components.v1.html(
+                f'<iframe src="data:application/pdf;base64,{pdf_b64}#page={target_page}" width="100%" height="700"></iframe>',
+                height=720,
+            )
+        except Exception as e:
+            st.info(f"PDF preview unavailable: {e}")
 
     st.text_area("Exact Chunk Text", value=found_text, height=260)
 

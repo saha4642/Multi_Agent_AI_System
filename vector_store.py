@@ -48,3 +48,10 @@ class VectorStore:
         Returns: [{"id": str, "score": float, "metadata": {...}}, ...], highest score first
         """
         return self.impl.query(query_text, top_k=top_k)
+
+    def get_by_id(self, item_id: str) -> Optional[Dict[str, Any]]:
+        """Return one item as {id,text,metadata} or None if not found/supported."""
+        getter = getattr(self.impl, "get_by_id", None)
+        if not callable(getter):
+            return None
+        return getter(item_id)
