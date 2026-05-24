@@ -7,6 +7,7 @@ import base64
 import json
 import asyncio
 import inspect
+from urllib.parse import urlencode
 from typing import Any, Dict, List
 
 import streamlit as st
@@ -103,20 +104,35 @@ def answer_from_gpt(question: str) -> str:
 def _build_source_link(meta: Dict[str, Any], chunk_id: str) -> str:
     """
     - For URL sources: return external deep link (section/text fragment)
-    - For file sources: return in-app source viewer link
+    - For file sources: return in-app source viewer link (URL-encoded)
     """
     source_type = (meta.get("source_type") or "").lower()
 
-    # ✅ URL sources => external link to exact portion
+    # URL sources => external link to exact portion
     if source_type == "url":
-        return meta.get("source_url_exact") or meta.get("source_url_section") or meta.get("source_url") or meta.get("title") or ""
+        return (
+            meta.get("source_url_exact")
+            or meta.get("source_url_section")
+            or meta.get("source_url")
+            or meta.get("title")
+            or ""
+        )
 
-    # Existing behavior for PDFs/TXT
-    doc_id = meta.get("doc_id") or ""
+    # File sources (PDF/DOCX/TXT/MD/others): always deep-link to source viewer.
+    params = {
+        "view": "source",
+        "doc_id": meta.get("doc_id") or "",
+        "chunk_id": chunk_id or "",
+    }
+
     page = meta.get("page_number")
-    if page:
-        return f"?view=source&doc_id={doc_id}&chunk_id={chunk_id}&page={int(page)}"
-    return f"?view=source&doc_id={doc_id}&chunk_id={chunk_id}"
+    if page is not None:
+        try:
+            params["page"] = int(page)
+        except (TypeError, ValueError):
+            pass
+
+    return f"?{urlencode(params)}"
 
 
 def _render_sources(doc_items: List[Dict[str, Any]], *, title: str = "Sources") -> None:
