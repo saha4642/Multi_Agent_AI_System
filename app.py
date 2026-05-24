@@ -163,6 +163,17 @@ def _render_sources(doc_items: List[Dict[str, Any]], *, title: str = "Sources") 
             st.markdown(f"{i}. [{label}]({link})  \n`{cid}`")
 
 
+
+
+def _mime_for_filename(path: str) -> str:
+    ext = os.path.splitext((path or '').lower())[1]
+    return {
+        '.pdf': 'application/pdf',
+        '.txt': 'text/plain',
+        '.md': 'text/markdown',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    }.get(ext, 'application/octet-stream')
+
 def _source_viewer() -> None:
     qp = st.query_params
     if qp.get("view") != "source":
@@ -203,7 +214,7 @@ def _source_viewer() -> None:
                 label="⬇️ Download full source document",
                 data=src_bytes,
                 file_name=os.path.basename(source_path),
-                mime="application/pdf" if source_path.lower().endswith(".pdf") else "application/octet-stream",
+                mime=_mime_for_filename(source_path),
                 key=f"download_{doc_id}",
             )
         except Exception as e:
