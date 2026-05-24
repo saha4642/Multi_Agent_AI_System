@@ -188,10 +188,26 @@ def _source_viewer() -> None:
         st.warning(f"Doc not found in manifest: {doc_id}")
         return
 
+    source_path = d.get("source_path", "")
+
     st.markdown(f"**Document:** `{doc_id}`")
-    st.markdown(f"**File:** `{d.get('source_path','')}`")
+    st.markdown(f"**File:** `{source_path}`")
     if page_num:
         st.markdown(f"**PDF Page:** {page_num}")
+
+    if source_path and os.path.exists(source_path):
+        try:
+            with open(source_path, "rb") as src_f:
+                src_bytes = src_f.read()
+            st.download_button(
+                label="⬇️ Download full source document",
+                data=src_bytes,
+                file_name=os.path.basename(source_path),
+                mime="application/pdf" if source_path.lower().endswith(".pdf") else "application/octet-stream",
+                key=f"download_{doc_id}",
+            )
+        except Exception as e:
+            st.info(f"Download button unavailable: {e}")
 
     st.caption("Showing the exact retrieved chunk text stored in metadata during ingestion.")
 
@@ -221,7 +237,6 @@ def _source_viewer() -> None:
         st.warning("Could not locate this chunk in the vector store.")
         return
 
-    source_path = d.get("source_path", "")
     if (source_path or "").lower().endswith(".pdf") and os.path.exists(source_path):
         try:
             with open(source_path, "rb") as f:
