@@ -89,6 +89,13 @@ class LocalVectorStore:
         _save(list(existing.values()))
         print(f"[local-vs] Batch upserted {len(items)} items.")
 
+
+    def get_by_id(self, item_id: str) -> Dict[str, Any] | None:
+        rows = _load()
+        for r in rows:
+            if r.get("id") == item_id:
+                return {"id": r.get("id"), "text": r.get("text"), "metadata": r.get("metadata", {})}
+        return None
     def query(
         self,
         query_text: str,
